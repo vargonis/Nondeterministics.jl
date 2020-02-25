@@ -1,0 +1,9 @@
+name = "Nondeterministics"
+uuid = "da844948-3717-4957-b159-850dadc1a8fc"
+authors = ["Rodrigo Vargas <rodrigo@odd.co>"]
+version = "0.1.0"
+
+[deps]
+CUDAnative = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
+CuArrays = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
+StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
