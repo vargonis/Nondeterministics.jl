@@ -1,6 +1,6 @@
 # Base.@irrational log2π 1.8378770664093454836 log(big(2.)*π)
 
-
+# Discrete Nondeterministics
 for D in [:Categorical, :Poisson]
     @eval struct $D{T<:Integer} <: NondeterministicScalar{T}
         val :: T
@@ -8,6 +8,7 @@ for D in [:Categorical, :Poisson]
     end
 end
 
+# Continuous Nondeterministics
 for D in [:Uniform, :Normal, :Exponential, :Gamma]
     @eval struct $D{T<:AbstractFloat} <: NondeterministicScalar{T}
         val :: T
@@ -15,6 +16,10 @@ for D in [:Uniform, :Normal, :Exponential, :Gamma]
     end
 end
 
+
+##########################
+# Sampling and likelihood
+##########################
 
 # Categorical
 function Categorical(p::NTuple{N,F}) where {N,F<:AbstractFloat}
@@ -34,7 +39,7 @@ _loglikelihood(c::Categorical, p::NTuple{N,F}) where {N,F<:AbstractFloat} =
     ifelse(1 ≤ c.val ≤ N, @inbounds CUDAnative.log(p[c.val]), -F(Inf))
 
 
-# Poisson
+# Poisson TODO eliminar dependencia de StatsFuns
 Poisson(λ::F) where F<:AbstractFloat =
     Poisson(val = convert(Int, poisinvcdf(λ, rand())))
 
@@ -74,18 +79,46 @@ end
 
 
 # Exponential
+Exponential(λ::F) where F = Exponential(val = λ * randexp(F))
+Exponential{F}(λ::F) where F = Exponential(val = λ * randexp(F))
+
+loglikelihood(x::Exponential{F}, λ::F) where F =
+    ifelse(x.val < zero(F), -F(Inf), log(λ) - λ * x)
+
+_loglikelihood(x::Exponential{F}, λ::F) where F =
+    ifelse(x.val < zero(F), -F(Inf), CUDAnative.log(λ) - λ * x)
 
 
 # Gamma
-# @which rand(Distributions.GLOBAL_RNG, Gamma())
-#
-# function rand(rng::AbstractRNG, d::Gamma{T}) where T
-#     if shape(d) < 1.0
-#         # TODO: shape(d) = 0.5 : use scaled chisq
-#         return rand(rng, GammaIPSampler(d))
-#     elseif shape(d) == 1.0
-#         return rand(rng, Exponential{T}(d.θ))
-#     else
-#         return rand(rng, GammaGDSampler(d))
-#     end
-# end
+function _MarsagliaTsang2000(α::F) where F
+    d = α - one(F)/3
+    c = one(F) / sqrt(9d)
+    while true
+        x = randn(F)
+        v = (one(F) + c*x)^3
+        while v < zero(F)
+            x = randn(F)
+            v = (1 + c*x)^3
+        end
+        u = rand(F)
+        u < one(F) - F(0.0331)x^4 && return d*v
+        log(U) < x^2/2 + d*(one(F) - v + log(v)) && return d*v
+    end
+end
+
+function Gamma(α::F, θ::F) where F
+    if α < one(F) # use the γ(1+α)*U^(1/α) trick from Marsaglia and Tsang (2000)
+        x = θ * _MarsagliaTsang2000(α + 1) # Gamma(α + 1, θ)
+        e = randexp(F)
+        return Gamma(val = x * exp(-e / α))
+    elseif α == one(F)
+        return Gamma(val = θ * randexp(F))
+    else
+        return Gamma(val = θ * _MarsagliaTsang2000(α))
+    end
+end
+
+loglikelihood(x::Gamma{F}, α::F, θ::F) where F = gammalogpdf(α, θ, x.val)
+
+_loglikelihood(x::Gamma{F}, α::F, θ::F) where F =
+    -CUDAnative.lgamma(k) - k*CUDAnative.log(θ) + (k-one(F))*CUDAnative.log(x) - x.val/θ

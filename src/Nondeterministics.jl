@@ -1,8 +1,9 @@
 module Nondeterministics
 
+using Random
+using StatsFuns: log2π, poisinvcdf, poislogpdf, gammalogpdf
 using CUDAnative
 using CuArrays
-using StatsFuns: poisinvcdf, poislogpdf, log2π
 
 export Nondeterministic
 export Categorical, Poisson, Uniform, Normal # Exponential, Gamma
