@@ -1,7 +1,7 @@
 module Nondeterministics
 
 using CUDAnative
-using CuArrays: @cufunc
+using CuArrays
 using StatsFuns: poisinvcdf, poislogpdf, log2π
 
 export Nondeterministic
@@ -35,6 +35,8 @@ end
 Base.to_index(d::NondeterministicScalar{T}) where T<:Integer = d.val
 Base.eltype(::NondeterministicScalar{T}) where T = T
 Base.eltype(::Type{<:NondeterministicScalar{T}}) where T = T
+
+Base.print_array(io::IO, d::NondeterministicArray) = Base.print_array(io, d.val)
 Base.eltype(::NondeterministicArray{T,N}) where {T,N} = T
 Base.eltype(::Type{<:NondeterministicArray{T,N}}) where {T,N} = T
 
@@ -42,7 +44,8 @@ Base.eltype(::Type{<:NondeterministicArray{T,N}}) where {T,N} = T
 include("scalars.jl")
 include("constructions.jl")
 
-@cufunc loglikelihood(d::NondeterministicScalar, θ...) = _loglikelihood(d, θ...)
+CuArrays.@cufunc loglikelihood(d::NondeterministicScalar, θ...) =
+    _loglikelihood(d, θ...)
 
 
 end # module
