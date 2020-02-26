@@ -9,7 +9,7 @@ Base.show(io::IO, p::Product) = show(io, p.val)
 
 function Product{D}(xs::AbstractArray{T,N}...) where {D,T,N}
     val = D.(xs...)
-    Product{D,N,typeof(val)}(val)
+    Product{eltype(val),N,typeof(val)}(val)
 end
 
 # Mixtures:
