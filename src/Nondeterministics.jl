@@ -38,10 +38,11 @@ Base.eltype(::Type{<:NondeterministicScalar{T}}) where T = T
 Base.eltype(::NondeterministicArray{T,N}) where {T,N} = T
 Base.eltype(::Type{<:NondeterministicArray{T,N}}) where {T,N} = T
 
+
 include("scalars.jl")
 include("constructions.jl")
 
-@cufunc loglikelihood(d::NondeterministicScalar, θ) = _loglikelihood(d, θ)
+@cufunc loglikelihood(d::NondeterministicScalar, θ...) = _loglikelihood(d, θ...)
 
 
 end # module

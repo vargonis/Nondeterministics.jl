@@ -51,29 +51,23 @@ end
 Uniform(a::F, b::F) where F = Uniform(val = a + (b - a)rand(F))
 Uniform{F}(a::F, b::F) where F = Uniform(val = a + (b - a)rand(F))
 
-function loglikelihood(u::Uniform{F}, θ::Tuple{F,F}) where F
-    a, b = θ
-    a ≤ u.val ≤ b ? -log(b - a) : -F(Inf)
-end
+loglikelihood(u::Uniform{F}, a::F, b::F) where F =
+    ifelse(a ≤ u.val ≤ b, -log(b - a), -F(Inf))
 
-function _loglikelihood(u::Uniform{F}, θ::Tuple{F,F}) where F
-    a, b = θ
-    a ≤ u.val ≤ b ? -CUDAnative.log(b - a) : -F(Inf)
-end
+_loglikelihood(u::Uniform{F}, a::F, b::F) where F =
+    ifelse(a ≤ u.val ≤ b, -CUDAnative.log(b - a), -F(Inf))
 
 
 # Normal
 Normal(μ::F, σ::F) where F = Normal(val = μ + σ * randn(F))
 Normal{F}(μ::F, σ::F) where F = Normal(val = μ + σ * randn(F))
 
-function loglikelihood(x::Normal{F}, θ::Tuple{F,F}) where F
-    μ, σ = θ
+function loglikelihood(x::Normal{F}, μ::F, σ::F) where F
     iszero(σ) && return ifelse(x == μ, Inf, -Inf)
     -(((x.val - μ) / σ)^2 + log2π)/2 - log(σ)
 end
 
-function _loglikelihood(x::Normal{F}, θ::Tuple{F,F}) where F
-    μ, σ = θ
+function _loglikelihood(x::Normal{F}, μ::F, σ::F) where F
     iszero(σ) && return ifelse(x == μ, Inf, -Inf)
     -(((x.val - μ) / σ)^2 + log2π)/2 - CUDAnative.log(σ)
 end
