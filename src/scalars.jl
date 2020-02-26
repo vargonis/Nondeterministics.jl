@@ -2,14 +2,14 @@
 
 
 for D in [:Categorical, :Poisson]
-    @eval struct $D{T<:Integer} <: Nondeterministic{T}
+    @eval struct $D{T<:Integer} <: NondeterministicScalar{T}
         val :: T
         $D(;val) = new{typeof(val)}(val)
     end
 end
 
 for D in [:Uniform, :Normal, :Exponential, :Gamma]
-    @eval struct $D{T<:AbstractFloat} <: Nondeterministic{T}
+    @eval struct $D{T<:AbstractFloat} <: NondeterministicScalar{T}
         val :: T
         $D(;val) = new{typeof(val)}(val)
     end
