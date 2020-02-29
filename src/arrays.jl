@@ -1,40 +1,56 @@
 # Product
-struct Product{D<:NondeterministicScalar, N, A<:AbstractArray{D,N}} <:
-       NondeterministicArray{D,N}
+struct Product{D<:NondeterministicScalar, T, N, A<:AbstractArray{T,N}} <:
+       NondeterministicArray{T,N}
+    params :: Tuple
     val :: A
-    Product(;val) = new{eltype(val),ndims(val),typeof(val)}(val)
+    function Product{D}(params; val) where D
+        # eltype(D) == eltype(val) || error("distribution and value element types must coincide")
+        D == Base.typename(D).wrapper || @warn "distribution domain parameter is inferred from value, the specified type will be ignored"
+        new{Base.typename(D).wrapper,
+            eltype(val), ndims(val), typeof(val)}(params, val)
+    end
 end
 
-Product{D}(xs::AbstractArray{T}...) where {D,T} = Product(val = D.(xs...))
+Product{D}(θs::AbstractArray{T}...) where {D,T} =
+    Product{D}(xs; val = (forgetful ∘ D).(θs...))
+
 Product{Normal}(μs::CuArray{T}, σs::CuArray{T}) where T =
-    Product(val = (x -> Normal(val=x)).(μs .+ σs .* CuArrays.randn(T, size(μs))))
+    Product{Normal{T}}((μs, σs); val = μs .+ σs .* CuArrays.randn(T, size(μs)))
 
-loglikelihood(p::Product, θs...) = sum(loglikelihood.(p.val, θs...))
-# _loglikelihood(p::Product, θs...) =
+# fallback CuArray constructor (sampling on cpu and moving to the device)
+Product{D}(θs::CuArray{T}...) where {D,T} =
+    Product{D{T}}(θs; val = CuArray((forgetful ∘ D).(Array.(θs)...)))
 
 
-# Mixture. I don't really know if this belongs here, because it has "hidden variables" (the component of the mixture that the value was sampled from). Thus, computing loglikelihood is funny...
-struct Coproduct{D,N,T} <: NondeterministicScalar{T}
-    val :: T
-    Coproduct{N}(;val::NondeterministicScalar{T}) where {N,T} =
-        new{typeof(val),N,eltype(val)}(val)
-end
+loglikelihood(x, ::Type{<:Product{D}}, θs...) where D =
+    sum(loglikelihood.(x, [D], θs...))
 
-function Coproduct{D}(θ::SVector{N}...; p::SVector{N,F}) where {D,N,F}
-    i = Categorical(p)
-    Coproduct{N}(val = D(map(x -> x[i], θ)...))
-end
+_loglikelihood(x, ::Type{<:Product{D}}, θs...) where D =
+    sum(_loglikelihood.(x, CuArray([D]), θs...))
+
+# # Mixture. I don't really know if this belongs here, because it has "hidden variables" (the component of the mixture that the value was sampled from). Thus, computing loglikelihood is funny...
+# struct Coproduct{D,N,T} <: NondeterministicScalar{T}
+#     val :: T
+#     Coproduct{N}(;val::NondeterministicScalar{T}) where {N,T} =
+#         new{typeof(val),N,eltype(val)}(val)
+# end
+#
+# function Coproduct{D}(θ::SVector{N}...; p::SVector{N,F}) where {D,N,F}
+#     i = Categorical(p)
+#     Coproduct{N}(val = D(map(x -> x[i], θ)...))
+# end
 
 
 # Dirichlet
 struct Dirichlet{N,F<:Real} <: NondeterministicArray{F,1}
+    params :: Tuple
     val :: SVector{N,F}
-    Dirichlet(;val) = new{length(val),eltype(val)}(val)
+    Dirichlet(params ;val) = new{length(val),eltype(val)}(params, val)
 end
 
 function Dirichlet(α::SVector{N,F}) where {N,F}
     p = Product{Gamma}(α, [one(F)])
-    Dirichlet(val = p/sum(p))
+    Dirichlet((α,); val = p/sum(p))
 end
 
 Dirichlet{N}(α::SVector{N,F}) where {N,F} = Dirichlet(α)

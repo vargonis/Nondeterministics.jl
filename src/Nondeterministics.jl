@@ -8,15 +8,16 @@ using CuArrays
 
 export NondeterministicScalar, NondeterministicArray
 export Categorical, Poisson, Uniform, Normal, Exponential, Gamma
-export Product, Coproduct, Dirichlet
+export Product, Dirichlet
 export loglikelihood
 
 
-abstract type NondeterministicScalar{T<:Real} <: Real end
+abstract type NondeterministicInteger{T<:Integer} <: Integer end
+abstract type NondeterministicReal{T<:Real} <: Real end
 abstract type NondeterministicArray{T,N} <: AbstractArray{T,N} end
+const NondeterministicScalar = Union{NondeterministicInteger, NondeterministicReal}
 
-
-for N in [:NondeterministicScalar, :NondeterministicArray]
+for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArray]
     @eval Base.promote_rule(::Type{T}, ::Type{<:$N{T}}) where T = T
     @eval Base.promote_rule(::Type{<:$N{T}}, ::Type{<:$N{T}}) where T = T
     @eval (::Type{T})(d::$N{T}) where T = d.val
@@ -27,12 +28,14 @@ for N in [:NondeterministicScalar, :NondeterministicArray]
             $op(x.val, y.val)
         end
     end
+    @eval loglikelihood(d::$N) = loglikelihood(d.val, typeof(d), d.params...)
+    @eval forgetful(d::$N) = d.val
 end
 
-
-Base.to_index(d::NondeterministicScalar{T}) where T<:Integer = d.val
-Base.eltype(::NondeterministicScalar{T}) where T = T
-Base.eltype(::Type{<:NondeterministicScalar{T}}) where T = T
+for N in [:NondeterministicInteger, :NondeterministicReal]
+    @eval Base.eltype(::$N{T}) where T = T
+    @eval Base.eltype(::Type{<:$N{T}}) where T = T
+end
 
 Base.size(d::NondeterministicArray) = size(d.val)
 Base.getindex(d::NondeterministicArray, args...) = getindex(d.val, args...)
@@ -45,8 +48,7 @@ Base.eltype(::Type{<:NondeterministicArray{T,N}}) where {T,N} = T
 include("scalars.jl")
 include("arrays.jl")
 
-CuArrays.@cufunc loglikelihood(d::NondeterministicScalar, θ...) =
-    _loglikelihood(d, θ...)
+CuArrays.@cufunc loglikelihood(args...) = _loglikelihood(args...)
 
 
 end # module
