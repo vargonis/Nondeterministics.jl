@@ -2,6 +2,7 @@ module Nondeterministics
 
 using Random
 using StatsFuns: log2π, poisinvcdf, poislogpdf, gammalogpdf
+using SpecialFunctions: loggamma
 using StaticArrays
 using CUDAnative
 using CuArrays
