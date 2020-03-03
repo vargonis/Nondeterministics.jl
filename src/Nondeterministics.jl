@@ -32,6 +32,10 @@ for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArra
     @eval forgetful(d::$N) = d.val
 end
 
+forgetful(xs...) = forgetful.(xs)
+forgetful(t::Tuple) = forgetful.(t)
+forgetful(x) = x
+
 for N in [:NondeterministicInteger, :NondeterministicReal]
     @eval Base.eltype(::$N{T}) where T = T
     @eval Base.eltype(::Type{<:$N{T}}) where T = T

@@ -45,7 +45,7 @@ _loglikelihood(x, ::Type{<:Product{D}}, θs...) where D =
 struct Dirichlet{N,F<:Real} <: NondeterministicArray{F,1}
     params :: Tuple
     val :: SVector{N,F}
-    Dirichlet(params ;val) = new{length(val),eltype(val)}(params, val)
+    Dirichlet(params; val) = new{length(val),eltype(val)}(params, val)
 end
 
 function Dirichlet(α::SVector{N,F}) where {N,F}
