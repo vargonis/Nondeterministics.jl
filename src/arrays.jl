@@ -12,7 +12,7 @@ struct Product{D<:NondeterministicScalar, T, N, A<:AbstractArray{T,N}} <:
 end
 
 Product{D}(θs::AbstractArray{T}...) where {D,T} =
-    Product{D}(xs; val = (forgetful ∘ D).(θs...))
+    Product{D}(θs; val = (forgetful ∘ D).(θs...))
 
 Product{Normal}(μs::CuArray{T}, σs::CuArray{T}) where T =
     Product{Normal{T}}((μs, σs); val = μs .+ σs .* CuArrays.randn(T, size(μs)))

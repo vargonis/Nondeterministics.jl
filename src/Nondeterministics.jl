@@ -19,9 +19,9 @@ abstract type NondeterministicArray{T,N} <: AbstractArray{T,N} end
 const NondeterministicScalar = Union{NondeterministicInteger, NondeterministicReal}
 
 for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArray]
-    @eval Base.promote_rule(::Type{T}, ::Type{<:$N{T}}) where T = T
-    @eval Base.promote_rule(::Type{<:$N{T}}, ::Type{<:$N{T}}) where T = T
-    @eval (::Type{T})(d::$N{T}) where T = d.val
+    @eval Base.promote_rule(::Type{S}, ::Type{<:$N{T}}) where {S<:Number,T} = T
+    @eval Base.promote_rule(::Type{<:$N{S}}, ::Type{<:$N{T}}) where {S,T} = promote_rule(S,T)
+    @eval (::Type{T})(d::$N) where T = T(d.val)
     @eval Base.show(io::IO, d::$N) = show(io, d.val)
     for op in [:(+), :(-), :(*), :(/), :(÷), :(\), :(^), :(%),
                :(<), :(<=), :(>), :(>=)]
