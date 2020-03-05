@@ -5,8 +5,8 @@ for D in [:Categorical, :Poisson]
     @eval struct $D{T<:Integer, P} <: NondeterministicInteger{T}
         params :: P
         val    :: T
-        $D(params::Tuple; val) = new{typeof(val),typeof(params)}(params, val)
-        $D{T}(params::Tuple; val) where T = new{T,typeof(params)}(params, val)
+        $D(params; val) = new{typeof(val),typeof(params)}(params, val)
+        $D{T}(params; val) where T = new{T,typeof(params)}(params, val)
     end
 end
 
@@ -15,8 +15,8 @@ for D in [:Uniform, :Normal, :Exponential, :Gamma]
     @eval struct $D{T<:AbstractFloat, P} <: NondeterministicReal{T}
         params :: P
         val    :: T
-        $D(params::Tuple; val) = new{typeof(val),typeof(params)}(params, val)
-        $D{T}(params::Tuple; val) where T = new{T,typeof(params)}(params, val)
+        $D(params; val) = new{typeof(val),typeof(params)}(params, val)
+        $D{T}(params; val) where T = new{T,typeof(params)}(params, val)
     end
 end
 
@@ -33,28 +33,26 @@ function Categorical(p::AbstractVector{F}) where F<:Real
     while cp < draw && i < length(p)
         cp += p[i +=1]
     end
-    Categorical((forgetful(p),); val = max(i,1))
+    Categorical(forgetful(p); val = max(i,1))
 end
 
-loglikelihood(::Type{<:Categorical}, p::AbstractVector{F}, n::Integer) where
-             F<:AbstractFloat =
-    ifelse(1 ≤ n ≤ length(p), @inbounds log(p[n]), -F(Inf))
+loglikelihood(c::Categorical{T,F}) where {T, F<:AbstractFloat} =
+    ifelse(1 ≤ c.val ≤ length(c.params), @inbounds log(c.params[c.val]), -F(Inf))
 
-_loglikelihood(::Type{<:Categorical}, p::AbstractVector{F}, n::Integer) where
-              F<:AbstractFloat =
-    ifelse(1 ≤ n ≤ length(p), @inbounds CUDAnative.log(p[n]), -F(Inf))
+_loglikelihood(c::Categorical{T,F}) where {T, F<:AbstractFloat} =
+    ifelse(1 ≤ c.val ≤ length(c.params), @inbounds CUDAnative.log(c.params[c.val]), -F(Inf))
 
 
 # Poisson
 # TODO eliminar dependencia de StatsFuns:
 Poisson(λ::F) where F<:Real =
-    Poisson((forgetful(λ),); val = convert(Int, poisinvcdf(λ, rand())))
+    Poisson(forgetful(λ); val = convert(Int, poisinvcdf(λ, rand())))
 
-loglikelihood(n::Integer, ::Type{<:Poisson}, λ::F) where F<:AbstractFloat =
-    poislogpdf(λ, n)
+loglikelihood(p::Poisson) = poislogpdf(p.params, p.val)
 
-function _loglikelihood(n::Integer, ::Type{<:Poisson}, λ::F) where F<:AbstractFloat
-    x = convert(F, n)
+function _loglikelihood(p::Poisson{T,F}) where {T, F<:AbstractFloat}
+    x = convert(F, p.val)
+    λ = p.params
     iszero(λ) && return ifelse(iszero(x), zero(F), -F(Inf))
     x * CUDAnative.log(λ) - λ - CUDAnative.lgamma(x + one(F))
 end
@@ -66,11 +64,15 @@ Uniform(a::F, b::F) where F<:Real =
     Uniform(forgetful(a, b); val = a + (b - a)rand(eltype(F)))
 Uniform{F}(a::F, b::F) where F<:AbstractFloat = Uniform(a, b)
 
-loglikelihood(x::F, ::Type{<:Uniform}, a::F, b::F) where F<:AbstractFloat =
-    ifelse(a ≤ x ≤ b, -log(b - a), -F(Inf))
+function loglikelihood(u::Uniform{F}) where F<:AbstractFloat
+    a::F, b::F = u.params
+    ifelse(a ≤ u.val ≤ b, -log(b - a), -F(Inf))
+end
 
-_loglikelihood(x::F, ::Type{<:Uniform}, a::F, b::F) where F<:AbstractFloat =
-    ifelse(a ≤ x ≤ b, -CUDAnative.log(b - a), -F(Inf))
+function _loglikelihood(u::Uniform{F}) where F<:AbstractFloat
+    a::F, b::F = u.params
+    ifelse(a ≤ u.val ≤ b, -CUDAnative.log(b - a), -F(Inf))
+end
 
 
 # Normal
@@ -79,27 +81,33 @@ Normal(μ::F, σ::F) where F<:Real =
     Normal(forgetful(μ, σ); val = μ + σ * randn(eltype(F)))
 Normal{F}(μ::F, σ::F) where F<:AbstractFloat = Normal(μ, σ)
 
-function loglikelihood(x::F, ::Type{<:Normal}, μ::F, σ::F) where F<:AbstractFloat
-    iszero(σ) && return ifelse(x == μ, F(Inf), -F(Inf))
-    -(((x - μ) / σ)^2 + F(log2π))/2 - log(σ)
+function loglikelihood(x::Normal{F}) where F<:AbstractFloat
+    μ::F, σ::F = x.params
+    iszero(σ) && return ifelse(x.params == μ, F(Inf), -F(Inf))
+    -(((x.val - μ) / σ)^2 + F(log2π))/2 - log(σ)
 end
 
-function _loglikelihood(x::F, ::Type{<:Normal}, μ::F, σ::F) where F<:AbstractFloat
+function _loglikelihood(x::Normal{F}) where F<:AbstractFloat
+    μ::F, σ::F = x.params
     iszero(σ) && return ifelse(x == μ, F(Inf), -F(Inf))
-    -(((x - μ) / σ)^2 + F(log2π))/2 - CUDAnative.log(σ)
+    -(((x.val - μ) / σ)^2 + F(log2π))/2 - CUDAnative.log(σ)
 end
 
 
 # Exponential
 Exponential(λ::F) where F<:Real =
-    Exponential((forgetful(λ),); val = λ * randexp(eltype(F)))
+    Exponential(forgetful(λ); val = λ * randexp(eltype(F)))
 Exponential{F}(λ::F) where F<:AbstractFloat = Exponential(λ)
 
-loglikelihood(x::F, ::Type{<:Exponential}, λ::F) where F<:AbstractFloat =
-    ifelse(x < zero(F), -F(Inf), log(λ) - λ * x)
+function loglikelihood(x::Exponential{F}) where F<:AbstractFloat
+    λ::F = x.params
+    ifelse(x.val < zero(F), -F(Inf), log(λ) - λ * x.val)
+end
 
-_loglikelihood(x::F, ::Type{<:Exponential}, λ::F) where F<:AbstractFloat =
-    ifelse(x < zero(F), -F(Inf), CUDAnative.log(λ) - λ * x)
+function _loglikelihood(x::Exponential{F}) where F<:AbstractFloat
+    λ::F = x.params
+    ifelse(x.val < zero(F), -F(Inf), CUDAnative.log(λ) - λ * x.val)
+end
 
 
 # Gamma
@@ -133,8 +141,12 @@ function Gamma(α::F, θ::F) where F<:Real
 end
 
 # TODO eliminar dependencia de StatsFuns:
-loglikelihood(x::F, ::Type{<:Gamma}, α::F, θ::F) where F<:AbstractFloat =
+function loglikelihood(x::Gamma{F}) where F<:AbstractFloat
+    α::F, θ::F = x.params
     gammalogpdf(α, θ, x.val)
+end
 
-_loglikelihood(x::F, ::Type{<:Gamma}, α::F, θ::F) where F<:AbstractFloat =
-    -CUDAnative.lgamma(k) - α*CUDAnative.log(θ) + (α-one(F))*CUDAnative.log(x) - x/θ
+function _loglikelihood(x::Gamma{F}) where F<:AbstractFloat
+    α::F, θ::F = x.params
+    -CUDAnative.lgamma(α) - α*CUDAnative.log(θ) + (α-one(F))*CUDAnative.log(x) - x/θ
+end

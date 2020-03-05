@@ -26,7 +26,6 @@ for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArra
     for op in [:(+), :(-)]
         @eval Base.$op(x::D) where D<:$N = $op(x.val)
     end
-    @eval loglikelihood(d::$N) = loglikelihood(d.val, typeof(d), d.params...)
     @eval forgetful(d::$N) = d.val
 end
 
