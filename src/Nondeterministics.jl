@@ -23,11 +23,8 @@ for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArra
     @eval Base.promote_rule(::Type{<:$N{S}}, ::Type{<:$N{T}}) where {S,T} = promote_rule(S,T)
     @eval (::Type{T})(d::$N) where T = T(d.val)
     @eval Base.show(io::IO, d::$N) = show(io, d.val)
-    for op in [:(+), :(-), :(*), :(/), :(÷), :(\), :(^), :(%),
-               :(<), :(<=), :(>), :(>=)]
-        @eval function Base.$op(x::D, y::D) where {T, D<:$N{T}}
-            $op(x.val, y.val)
-        end
+    for op in [:(+), :(-)]
+        @eval Base.$op(x::D) where D<:$N = $op(x.val)
     end
     @eval loglikelihood(d::$N) = loglikelihood(d.val, typeof(d), d.params...)
     @eval forgetful(d::$N) = d.val

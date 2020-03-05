@@ -2,21 +2,21 @@
 
 # Discrete Nondeterministics
 for D in [:Categorical, :Poisson]
-    @eval struct $D{T<:Integer} <: NondeterministicInteger{T}
-        params :: Tuple
+    @eval struct $D{T<:Integer, P} <: NondeterministicInteger{T}
+        params :: P
         val    :: T
-        $D(params::Tuple; val) = new{typeof(val)}(params, val)
-        $D{T}(params::Tuple; val) where T = new{T}(params, val)
+        $D(params::Tuple; val) = new{typeof(val),typeof(params)}(params, val)
+        $D{T}(params::Tuple; val) where T = new{T,typeof(params)}(params, val)
     end
 end
 
 # Continuous Nondeterministics
 for D in [:Uniform, :Normal, :Exponential, :Gamma]
-    @eval struct $D{T<:AbstractFloat} <: NondeterministicReal{T}
-        params :: Tuple
+    @eval struct $D{T<:AbstractFloat, P} <: NondeterministicReal{T}
+        params :: P
         val    :: T
-        $D(params::Tuple; val) = new{typeof(val)}(params, val)
-        $D{T}(params::Tuple; val) where T = new{T}(params, val)
+        $D(params::Tuple; val) = new{typeof(val),typeof(params)}(params, val)
+        $D{T}(params::Tuple; val) where T = new{T,typeof(params)}(params, val)
     end
 end
 
@@ -33,7 +33,7 @@ function Categorical(p::AbstractVector{F}) where F<:Real
     while cp < draw && i < length(p)
         cp += p[i +=1]
     end
-    Categorical((forgetuful(p),); val = max(i,1))
+    Categorical((forgetful(p),); val = max(i,1))
 end
 
 loglikelihood(::Type{<:Categorical}, p::AbstractVector{F}, n::Integer) where

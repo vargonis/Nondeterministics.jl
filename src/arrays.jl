@@ -4,8 +4,7 @@ struct Product{D<:NondeterministicScalar, T, N, A<:AbstractArray{T,N}} <:
     params :: Tuple
     val :: A
     function Product{D}(params; val) where D
-        # eltype(D) == eltype(val) || error("distribution and value element types must coincide")
-        D == Base.typename(D).wrapper || @warn "distribution domain parameter is inferred from value, the specified type will be ignored"
+        D == Base.typename(D).wrapper || eltype(D) == eltype(val) || @warn "distribution domain parameter is inferred from value, the specified type will be ignored"
         new{Base.typename(D).wrapper,
             eltype(val), ndims(val), typeof(val)}(params, val)
     end
