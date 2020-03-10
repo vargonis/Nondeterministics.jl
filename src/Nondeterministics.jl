@@ -7,63 +7,87 @@ using StaticArrays
 using CUDAnative
 using CuArrays
 
-export NondeterministicScalar, NondeterministicArray
-export Categorical, Poisson, Uniform, Normal, Exponential, Gamma
-export Product, Dirichlet
-export loglikelihood
+# import Base: rand
 
+const _distributions = (
+    :Categorical, :Poisson,
+    :Uniform, :Normal, :Exponential, :Gamma,
+    :Dirichlet
+)
 
-abstract type NondeterministicInteger{T<:Integer} <: Integer end
-abstract type NondeterministicReal{T<:Real} <: Real end
-abstract type NondeterministicArray{T,N} <: AbstractArray{T,N} end
-const NondeterministicScalar = Union{NondeterministicInteger, NondeterministicReal}
-
-
-for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArray]
-    @eval Base.show(io::IO, d::$N) = show(io, d.val)
-    for op in [:(+), :(-)]
-        @eval Base.$op(x::D) where D<:$N = $op(x.val)
-    end
-    @eval forgetful(d::$N) = d.val
+export Distribution
+export params, logpdf
+for s in _distributions
+    @eval export $s
 end
 
-forgetful(xs...) = forgetful.(xs)
-forgetful(t::Tuple) = forgetful.(t)
-forgetful(x) = x
-# # might be needed if using Tracker:
-# forgetful(x::Tracker.TrackedReal) = x.data
 
+############################
+# Distribution generalities
+############################
 
-for N in [:NondeterministicInteger, :NondeterministicReal]
-    @eval Base.eltype(::$N{T}) where T = T
-    @eval Base.eltype(::Type{<:$N{T}}) where T = T
-    @eval Base.promote_rule(::Type{S}, ::Type{<:$N{T}}) where {S<:Number,T} = T
-    @eval Base.promote_rule(::Type{<:$N{S}}, ::Type{<:$N{T}}) where {S,T} = promote_type(S,T)
-    @eval (::Type{T})(d::$N) where T = T(d.val)
-    # @eval (::Type{T})(d::$N{T}) where T = T(d.val)
-    for op in [:(+), :(-), :(*), :(/), :(÷), :(\), :(^), :(%),
-               :(<), :(<=), :(>), :(>=)]
-        @eval function Base.$op(x::D, y::D) where {T, D<:$N{T}}
-            $op(x.val, y.val)
-        end
+primitive type Distribution 8 end
+
+const Categorical = reinterpret(Distribution, 0x00)
+const Poisson     = reinterpret(Distribution, 0x01)
+const Uniform     = reinterpret(Distribution, 0x10)
+const Normal      = reinterpret(Distribution, 0x11)
+const Exponential = reinterpret(Distribution, 0x12)
+const Gamma       = reinterpret(Distribution, 0x13)
+const Dirichlet   = reinterpret(Distribution, 0x20)
+
+function Base.show(io::IO, d::Distribution)
+    for s in distributions
+        d == eval(s) && return print(io, string(s))
     end
+    print(io, d)
 end
 
-# Base.promote_rule(::Type{Bool}, ::Type{N}) where N<:NondeterministicReal = N
+Base.length(::Distribution) = 1
+Base.iterate(d::Distribution) = (d, nothing)
+Base.iterate(::Distribution, ::Nothing) = nothing
+
+@inline function params(d::Distribution)
+    d == Categorical && return Tuple{Vararg{Real}}
+    d == Poisson     && return Tuple{Real}
+    d == Uniform     && return Tuple{Real,Real}
+    d == Normal      && return Tuple{Real,Real}
+    d == Exponential && return Tuple{Real}
+    d == Gamma       && return Tuple{Real,Real}
+    d == Dirichlet   && return Tuple{Vararg{Real}}
+end
 
 
-Base.size(d::NondeterministicArray) = size(d.val)
-Base.getindex(d::NondeterministicArray, args...) = getindex(d.val, args...)
-Base.setindex!(d::NondeterministicArray, args...) = setindex!(d.val, args...)
-Base.print_array(io::IO, d::NondeterministicArray) = Base.print_array(io, d.val)
-Base.eltype(::NondeterministicArray{T,N}) where {T,N} = T
-Base.eltype(::Type{<:NondeterministicArray{T,N}}) where {T,N} = T
+###############################
+# Distribution implementations
+###############################
 
+# Base.@irrational log2π 1.8378770664093454836 log(big(2.)*π)
+
+function homogenize(t::Tuple)
+    T = promote_type(typeof(t).parameters...)
+    Tuple{Vararg{T}}(t)
+end
 
 include("scalars.jl")
 include("arrays.jl")
 
-CuArrays.@cufunc loglikelihood(args...) = _loglikelihood(args...)
+@inline function logpdf(d::Distribution)
+    for s in _distributions
+        d == eval(s) && return eval(Symbol(:logpdf,s))
+    end
+end
+
+@inline function random(d::Distribution, params...)
+    for s in _distributions
+        d == eval(s) && return eval(Symbol(:rand,s))(params...)
+    end
+end
+(d::Distribution)(params...) = random(d, params...)
+
+for s in _distributions
+    @eval CuArrays.@cufunc $(Symbol(:logpdf,s))(args...) = $(Symbol(:_logpdf,s))(args...)
+end
 
 
 end # module
