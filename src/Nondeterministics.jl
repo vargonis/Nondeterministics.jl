@@ -37,7 +37,7 @@ const Gamma       = reinterpret(Distribution, 0x13)
 const Dirichlet   = reinterpret(Distribution, 0x20)
 
 function Base.show(io::IO, d::Distribution)
-    for s in distributions
+    for s in _distributions
         d == eval(s) && return print(io, string(s))
     end
     print(io, d)
