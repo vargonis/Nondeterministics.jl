@@ -18,10 +18,8 @@ abstract type NondeterministicReal{T<:Real} <: Real end
 abstract type NondeterministicArray{T,N} <: AbstractArray{T,N} end
 const NondeterministicScalar = Union{NondeterministicInteger, NondeterministicReal}
 
+
 for N in [:NondeterministicInteger, :NondeterministicReal, :NondeterministicArray]
-    @eval Base.promote_rule(::Type{S}, ::Type{<:$N{T}}) where {S<:Number,T} = T
-    @eval Base.promote_rule(::Type{<:$N{S}}, ::Type{<:$N{T}}) where {S,T} = promote_rule(S,T)
-    @eval (::Type{T})(d::$N) where T = T(d.val)
     @eval Base.show(io::IO, d::$N) = show(io, d.val)
     for op in [:(+), :(-)]
         @eval Base.$op(x::D) where D<:$N = $op(x.val)
@@ -32,11 +30,27 @@ end
 forgetful(xs...) = forgetful.(xs)
 forgetful(t::Tuple) = forgetful.(t)
 forgetful(x) = x
+# # might be needed if using Tracker:
+# forgetful(x::Tracker.TrackedReal) = x.data
+
 
 for N in [:NondeterministicInteger, :NondeterministicReal]
     @eval Base.eltype(::$N{T}) where T = T
     @eval Base.eltype(::Type{<:$N{T}}) where T = T
+    @eval Base.promote_rule(::Type{S}, ::Type{<:$N{T}}) where {S<:Number,T} = T
+    @eval Base.promote_rule(::Type{<:$N{S}}, ::Type{<:$N{T}}) where {S,T} = promote_type(S,T)
+    @eval (::Type{T})(d::$N) where T = T(d.val)
+    # @eval (::Type{T})(d::$N{T}) where T = T(d.val)
+    for op in [:(+), :(-), :(*), :(/), :(÷), :(\), :(^), :(%),
+               :(<), :(<=), :(>), :(>=)]
+        @eval function Base.$op(x::D, y::D) where {T, D<:$N{T}}
+            $op(x.val, y.val)
+        end
+    end
 end
+
+# Base.promote_rule(::Type{Bool}, ::Type{N}) where N<:NondeterministicReal = N
+
 
 Base.size(d::NondeterministicArray) = size(d.val)
 Base.getindex(d::NondeterministicArray, args...) = getindex(d.val, args...)
