@@ -69,15 +69,13 @@ The following code makes a simple maximum likelihood estimation using Zygote.
 Zygote.@adjoint logpdf(d) = logpdf(d), _ -> 0
 
 n = 10000
-data = CuArray([Normal(0,1) for _ in 1:n]);
-μ, σ = Uniform(-1,1), Gamma(.5,.5);
+data = CuArray([Gamma(.5,.9) for _ in 1:n]);
+μ, σ = Uniform(0,5), Uniform(0,5);
 
-i = 0
-ϵ = .001
-while true
-    i += 1
+ϵ = .01
+for i in 1:n
     dμ, dσ = gradient(μ, σ) do μ, σ
-        sum(logpdf(Normal).(data, μ, σ)) / n
+        sum(logpdf(Gamma).(data, μ, σ)) / n
     end
     μ += ϵ * dμ; σ += ϵ * dσ
     i % 1000 == 0 && @show μ, σ

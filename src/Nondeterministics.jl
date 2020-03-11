@@ -1,13 +1,13 @@
 module Nondeterministics
 
 using Random
-using StatsFuns: log2π, poisinvcdf, poislogpdf, gammalogpdf
-using SpecialFunctions: loggamma
+using StatsFuns: poisinvcdf
 using StaticArrays
 using CUDAnative
 using CuArrays
 
-# import Base: rand
+
+include("specfuns.jl")
 
 const _distributions = (
     :Categorical, :Poisson,

@@ -27,7 +27,11 @@ end
 # TODO eliminar dependencia de StatsFuns:
 randPoisson(λ::Real) = convert(Int, poisinvcdf(λ, rand()))
 
-logpdfPoisson(i::Integer, λ::Real) = poislogpdf(λ, i)
+function logpdfPoisson(i::Integer, λ::T) where T<:Real
+    x = convert(eltype(T), i)
+    iszero(λ) && return ifelse(iszero(x), zero(T), -T(Inf))
+    x * log(λ) - λ - lgamma(x + one(T))
+end
 
 function _logpdfPoisson(i::Integer, λ::T) where T<:Real
     x = convert(eltype(T), i)
@@ -76,11 +80,13 @@ randExponential(λ::Integer) = λ * randexp()
 
 function logpdfExponential(x_::Real, λ_::Real)
     x, λ = promote(x_, λ_)
-    ifelse(x < zero(x), -eltype(x)(Inf), log(λ) - λ * eltype(x)(x))
+    ifelse(x < zero(x), -eltype(x)(Inf), log(λ) - λ * x)
 end
 
-_logpdfExponential(x, λ::T) where T =
-    ifelse(x < zero(x), -T(Inf), CUDAnative.log(λ) - λ * T(x))
+function _logpdfExponential(x_::Real, λ_::Real)
+    x, λ = promote(x_, λ_)
+    ifelse(x < zero(x), -eltype(x)(Inf), CUDAnative.log(λ) - λ * x)
+end
 
 
 # Gamma
@@ -113,10 +119,10 @@ function randGamma(α::T, θ::T) where T<:Real
 end
 randGamma(α::T, θ::T) where T<:Integer = randGamma(Float64(α), Float64(θ))
 
-# TODO eliminar dependencia de StatsFuns:
 function logpdfGamma(x_::Real, α_::Real, θ_::Real)
     x, α, θ = promote(x_, α_, θ_)
-    gammalogpdf(α, θ, x)
+    T = eltype(x)
+    -lgamma(α) - α*log(θ) + (α-one(T))log(x) - x/θ
 end
 
 function _logpdfGamma(x_::Real, α_::Real, θ_::Real)

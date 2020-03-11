@@ -9,11 +9,11 @@ randDirichlet(n::Integer, α::Integer) = randDirichlet(n, Float64(α))
 function logpdfDirichlet(x, α::Real...)
     a, b = sum(u -> SVector(u,loggamma(u)), α)
     s = sum(((u,v) -> (u-one(u))log(v)).(α, x))
-    s - b + loggamma(a)
+    s - b + lgamma(a)
 end
 
 function _logpdfDirichlet(x, α::Real...)
-    a, b = sum(u -> SVector(u,CUDAnative.lgamma(u)), α)
+    a, b = sum(u -> SVector(u,lgamma(u)), α)
     s = sum(((u,v) -> (u-one(u))CUDAnative.log(v)).(α, x))
     s - b + CUDAnative.lgamma(a)
 end
