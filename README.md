@@ -1,25 +1,21 @@
 # Nondeterministics
 
-This package is meant to provide basic infrastructure for probabilistic programming, supporting GPU calculations and autodifferentiation.
-Compared to the traditional approach to statistical computing, as exemplified for instance by [Distributions.jl](https://github.com/JuliaStats/Distributions.jl),
+This package is meant to provide basic infrastructure for probabilistic programming, with CuArrays support and Tracker/Zygote compatibility.
+Compared to [Distributions.jl](https://github.com/JuliaStats/Distributions.jl),
 it introduces a change of emphasis regarding random variables:
 
 ```julia
-julia> Normal
-Normal
-
 julia> x = Normal(0,1)
 0.1487326095231564
 
 julia> logpdf(Normal)(x, 0, 1)
 -0.9299992277724566
+
+julia> Categorical(Dirichlet(1 + Poisson(10), Gamma(.5, .5))...)
+2
 ```
-As the name suggests, this code is nondeterministic:
-```julia
-julia> Normal(0,1)
-0.11046163865819952
-```
-Thus, `Normal` here is like an elementary [Gen.jl](https://probcomp.github.io/Gen/) generating function.
+As the name suggests, this code is nondeterministic.
+Thus, distributions here are like elementary [Gen.jl](https://probcomp.github.io/Gen/) generating functions.
 
 ## Some GPU examples
 
@@ -64,4 +60,26 @@ julia> logpdf(Normal).(x, CuArray(collect(-10.:1.:10.)), 1.)
  -34.65981746834414  
  -43.37454557524329  
  -53.08927368214244  
+```
+
+## A differentiable programming example
+
+The following code makes a simple maximum likelihood estimation using Zygote.
+```julia
+Zygote.@adjoint logpdf(d) = logpdf(d), _ -> 0
+
+n = 10000
+data = CuArray([Normal(0,1) for _ in 1:n]);
+μ, σ = Uniform(-1,1), Gamma(.5,.5);
+
+i = 0
+ϵ = .001
+while true
+    i += 1
+    dμ, dσ = gradient(μ, σ) do μ, σ
+        sum(logpdf(Normal).(data, μ, σ)) / n
+    end
+    μ += ϵ * dμ; σ += ϵ * dσ
+    i % 1000 == 0 && @show μ, σ
+end
 ```
